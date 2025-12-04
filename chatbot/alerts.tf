@@ -2,7 +2,7 @@
 #  DATA SO URCE: FIND THE EXISTING SNS TOPIC
 #  This looks up the SNS Topic you created manually.
 #################################################################
-data "aws_sns_topic" "nexus_ai_alerts_topic" {
+data "aws_sns_topic" "nexusai_alerts_topic" {
   name = "NexusAI-High-CPU-Alerts"
 }
 
@@ -11,7 +11,7 @@ data "aws_sns_topic" "nexus_ai_alerts_topic" {
 #  This sends alerts directly to your phone.
 #################################################################
 resource "aws_sns_topic_subscription" "sms_subscription" {
-  topic_arn = data.aws_sns_topic.nexus_ai_alerts_topic.arn
+  topic_arn = data.aws_sns_topic.nexusai_alerts_topic.arn
   protocol  = "sms"
   endpoint  = "+919416936987" 
 }
@@ -51,7 +51,7 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu_test_alarm" {
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
   dimensions = {
-    InstanceId = aws_instance.nexusai_server.id
+    InstanceId = aws_instance.nexus_ai_server.id
   }
   alarm_description = "TEST ALARM: CPU is 75% or higher for 1 minute."
   # This now refers to the topic found by the data source
@@ -72,7 +72,7 @@ resource "aws_cloudwatch_metric_alarm" "high_network_out_test_alarm" {
   metric_name         = "NetworkOut"
   namespace           = "AWS/EC2"
   dimensions = {
-    InstanceId = aws_instance.nexusai_server.id
+    InstanceId = aws_instance.nexus_ai_server.id
   }
   alarm_description = "TEST ALARM: Network Out is over 5MB in 1 minute."
   # This also refers to the topic found by the data source

@@ -1,0 +1,429 @@
+name: NexusAI CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # 🏗️ JOB 1: Infrastructure Provisioning (Terraform)
+  provision:
+    name: 'Terraform Provisioning'
+    runs-on: ubuntu-latest
+    outputs:
+      instance_ip: ${{ steps.get_ip.outputs.ip }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform Init
+        # Run init from the 'chatbot' subdirectory where the .tf files reside
+        run: terraform init
+        working-directory: ./chatbot
+
+      - name: Terraform Apply
+        # Pass the Route 53 Hosted Zone ID as a variable for the IAM Policy (route53.tf)
+        run: terraform apply -auto-approve -var "ROUTE53_ZONE_ID=${{ secrets.ROUTE53_ZONE_ID }}"
+        working-directory: ./chatbot
+
+      - name: Ensure Instance is Running and Get IP
+        id: get_ip
+        run: |
+          # Use the tag defined in your main.tf: "NexusAI-Server-Terraform"
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=NexusAI-Server-Terraform" "Name=instance-state-name,Values=running,stopped" --query "Reservations[0].Instances[0].InstanceId" --output text)
+          if [ "$INSTANCE_ID" == "None" ]; then
+            echo "No running or stopped instance found with tag 'NexusAI-Server-Terraform'."
+            exit 1
+          fi
+          echo "Found Instance ID: $INSTANCE_ID"
+          
+          # Logic to start the instance if it's stopped
+          INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[0].Instances[0].State.Name" --output text)
+          echo "Instance state is: $INSTANCE_STATE"
+          if [ "$INSTANCE_STATE" == "stopped" ]; then
+            echo "Instance is stopped. Sending start command..."
+            aws ec2 start-instances --instance-ids $INSTANCE_ID
+            echo "Waiting for instance to enter 'running' state..."
+            aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+            echo "Instance is now running."
+          elif [ "$INSTANCE_STATE" == "terminated" ]; then
+            echo "FATAL: The instance has been terminated. A new 'terraform apply' is required."
+            exit 1
+          fi
+          ip_address=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+          echo "Instance Public IP: $ip_address"
+          echo "ip=${ip_address}" >> $GITHUB_OUTPUT
+
+  # 🛡️ JOB 2.A: SonarCloud Code Analysis
+  sonarqube:
+    name: 'SonarCloud Code Analysis'
+    runs-on: ubuntu-latest
+    outputs:
+      quality_gate_passed: ${{ steps.quality_gate.outputs.quality_gate_passed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          if [ -f ./chatbot/requirements.txt ]; then
+            pip install -r ./chatbot/requirements.txt
+          fi
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Check Quality Gate Status
+        id: quality_gate
+        run: |
+          echo "Waiting for Quality Gate result..."
+          sleep 30
+          # ProjectKey from chatbot/sonar-project.properties
+          QUALITY_GATE_STATUS=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "https://sonarcloud.io/api/qualitygates/project_status?projectKey=Aanidhay_Nexus-AI-Chatbot" | jq -r '.projectStatus.status')
+          echo "Quality Gate Status: $QUALITY_GATE_STATUS"
+          if [ "$QUALITY_GATE_STATUS" = "OK" ]; then
+            echo "✅ Quality Gate PASSED - Deployment can proceed"
+            echo "quality_gate_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Quality Gate FAILED - Deployment will be blocked"
+            echo "quality_gate_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Send SonarCloud Results via Email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "NexusAI SonarCloud Analysis Results - ${{ steps.quality_gate.outputs.quality_gate_passed == 'true' && '✅ PASSED' || '❌ FAILED' }}"
+          body: |
+            SonarCloud analysis completed for commit ${{ github.sha }}.
+            🎯 Quality Gate Status: ${{ steps.quality_gate.outputs.quality_gate_passed == 'true' && 'PASSED ✅' || 'FAILED ❌' }}
+            View detailed results at: https://sonarcloud.io/project/overview?id=Aanidhay_Nexus-AI-Chatbot
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: NexusAI CI/CD Pipeline
+
+  # 🛡️ JOB 2.B: OWASP Dependency Check
+  owasp-dependency-check:
+    name: 'OWASP Dependency Check'
+    runs-on: ubuntu-latest
+    outputs:
+      security_scan_passed: ${{ steps.process_results.outputs.security_scan_passed }}
+      vulnerabilities_found: ${{ steps.process_results.outputs.vulnerabilities_found }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          if [ -f ./chatbot/requirements.txt ]; then
+            sudo apt-get install -y jq 
+            pip install -r ./chatbot/requirements.txt
+          fi
+
+      - name: Run OWASP Dependency Check
+        id: dependency_check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'NexusAI-Dependencies'
+          path: './chatbot' 
+          format: 'ALL'
+          args: >
+            --enableRetired
+            --enableExperimental
+            --failOnCVSS 7.0 
+            --suppression suppression.xml
+        continue-on-error: true
+
+      - name: Process OWASP Results
+        id: process_results
+        run: |
+          echo "Processing OWASP Dependency Check results..."
+          if [ -f "reports/dependency-check-report.json" ]; then
+            HIGH_VULN=$(jq '.dependencies[]?.vulnerabilities[]? | select(.severity == "HIGH") | .name' reports/dependency-check-report.json 2>/dev/null | wc -l || echo "0")
+            CRITICAL_VULN=$(jq '.dependencies[]?.vulnerabilities[]? | select(.severity == "CRITICAL") | .name' reports/dependency-check-report.json 2>/dev/null | wc -l || echo "0")
+            TOTAL_VULN=$((HIGH_VULN + CRITICAL_VULN))
+            
+            echo "vulnerabilities_found=$TOTAL_VULN" >> $GITHUB_OUTPUT
+            
+            if [ "$CRITICAL_VULN" -gt 0 ] || [ "$HIGH_VULN" -gt 0 ]; then
+              echo "❌ Security scan FAILED - Critical or High vulnerabilities found"
+              echo "security_scan_passed=false" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Security scan PASSED - No critical or high vulnerabilities"
+              echo "security_scan_passed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ No dependency check report found."
+            echo "security_scan_passed=false" >> $GITHUB_OUTPUT
+            echo "vulnerabilities_found=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload OWASP Dependency Check Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nexusai-dependency-check-report
+          path: reports/
+
+      - name: Send OWASP Results via Email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "NexusAI OWASP Dependency Check Results - ${{ steps.process_results.outputs.security_scan_passed == 'true' && '✅ PASSED' || '❌ FAILED' }}"
+          body: |
+            🔒 Security Scan Status: ${{ steps.process_results.outputs.security_scan_passed == 'true' && 'PASSED ✅' || 'FAILED ❌' }}
+            📊 Total Critical/High Vulnerabilities: ${{ steps.process_results.outputs.vulnerabilities_found || '0' }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: NexusAI CI/CD Pipeline
+
+  # 🚢 JOB 3: Build, Deploy, and Monitor
+  deploy:
+    name: 'Build, Deploy, and Monitor'
+    runs-on: ubuntu-latest
+    needs: [provision, sonarqube]
+    if: needs.sonarqube.outputs.quality_gate_passed == 'true' 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Ensure Dockerfile and app files are present for build context
+          path: ./chatbot 
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./chatbot 
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
+
+      - name: Deploy to EC2 and Update DNS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ needs.provision.outputs.instance_ip }}
+          username: ubuntu
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            echo "Starting deployment sequence on EC2 instance..."
+            
+            # 1. Docker Daemon Startup Check
+            sudo systemctl start docker
+            for i in {1..10}; do
+              if sudo docker info &> /dev/null; then
+                break
+              fi
+              sleep 2
+            done
+            sudo chmod 666 /var/run/docker.sock
+            
+            # --- ROUTE 53 UPDATE LOGIC ---
+            
+            # 2. Get Current Public IP from EC2 Metadata
+            INSTANCE_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+            if [ -z "$INSTANCE_IP" ]; then
+              echo "FATAL: Could not retrieve instance IP from metadata."
+              exit 1
+            fi
+            echo "Current Public IP is: $INSTANCE_IP"
+            
+            # 3. Create Route 53 Change Batch JSON on EC2 server
+            sudo bash -c 'cat > /tmp/route53-update.json <<EOF
+            {
+              "Comment": "Update A record for NexusAI deployment.",
+              "Changes": [
+                {
+                  "Action": "UPSERT",
+                  "ResourceRecordSet": {
+                    "Name": "${{ secrets.ROUTE53_RECORD_NAME }}",
+                    "Type": "A",
+                    "TTL": 60,
+                    "ResourceRecords": [
+                      {
+                        "Value": "'"$INSTANCE_IP"'"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+            EOF'
+            
+            # 4. Execute DNS Update using AWS CLI
+            # Zone ID is Z03334572GHUWIWV6BCXZ (provided by user) and passed via Secret
+            aws route53 change-resource-record-sets \
+              --hosted-zone-id ${{ secrets.ROUTE53_ZONE_ID }} \
+              --change-batch file:///tmp/route53-update.json
+              
+            echo "✅ Route 53 DNS update successful! Waiting 30 seconds for propagation..."
+            sleep 30
+            
+            # --- APPLICATION DEPLOYMENT ---
+            docker network create nexusai_network 2>/dev/null || echo "Network nexusai_network already exists"
+
+            docker stop nexusai-app 2>/dev/null || echo "Container nexusai-app was not running"
+            docker rm nexusai-app 2>/dev/null || echo "Container nexusai-app did not exist"
+            docker stop nexusai-caddy 2>/dev/null || echo "Container nexusai-caddy was not running"
+            docker rm nexusai-caddy 2>/dev/null || echo "Container nexusai-caddy did not exist"
+
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
+            
+            docker run -d \
+              --network nexusai_network \
+              --name nexusai-app \
+              -e GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+              --restart always \
+              ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
+            
+            # Caddy command uses the Route 53 record name for auto-SSL
+            docker run -d \
+              -p 80:80 \
+              -p 443:443 \
+              -p 443:443/udp \
+              --network nexusai_network \
+              --name nexusai-caddy \
+              --restart always \
+              caddy \
+              caddy reverse-proxy --from ${{ secrets.ROUTE53_RECORD_NAME }} --to nexusai-app:80 
+            
+            echo "Deployment completed successfully!"
+
+  
+      # 3.B. Monitoring Setup (CloudWatch)
+      - name: Install and Configure CloudWatch Agent
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ needs.provision.outputs.instance_ip }}
+          username: ubuntu
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            echo "Installing CloudWatch Agent..."
+            wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -O /tmp/amazon-cloudwatch-agent.deb
+            sudo dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
+            
+            # Create CloudWatch Agent config file (config.json)
+            sudo bash -c 'cat > /opt/aws/amazon-cloudwatch-agent/bin/config.json <<EOF
+            {
+              "agent": {
+                "run_as_user": "root"
+              },
+              "metrics": {
+                "metrics_collected": {
+                  "cpu": {
+                    "measurement": [
+                      "cpu_usage_idle",
+                      "cpu_usage_iowait",
+                      "cpu_usage_user",
+                      "cpu_usage_system"
+                    ],
+                    "metrics_collection_interval": 60,
+                    "total_cpu": true
+                  },
+                  "disk": {
+                    "measurement": [
+                      "used_percent",
+                      "inodes_free"
+                    ],
+                    "metrics_collection_interval": 60,
+                    "resources": [
+                      "/"
+                    ]
+                  },
+                  "mem": {
+                    "measurement": [
+                      "mem_used_percent"
+                    ],
+                    "metrics_collection_interval": 60
+                  }
+                },
+                "append_dimensions": {
+                  "InstanceId": "${aws:InstanceId}"
+                }
+              },
+              "logs": {
+                "logs_collected": {
+                  "files": {
+                    "collect_list": [
+                      {
+                        "file_path": "/var/lib/docker/containers/*/*.log",
+                        "log_group_name": "NexusAI-App-Logs",
+                        "log_stream_name": "{instance_id}-docker"
+                      },
+                      {
+                        "file_path": "/var/log/auth.log",
+                        "log_group_name": "NexusAI-Security-Logs",
+                        "log_stream_name": "{instance_id}-auth"
+                      },
+                      {
+                        "file_path": "/var/log/syslog",
+                        "log_group_name": "NexusAI-System-Logs",
+                        "log_stream_name": "{instance_id}-syslog"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            EOF'
+
+            # Start the CloudWatch Agent service
+            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json -s
+            echo "CloudWatch Agent configured for METRICS and LOGS and started."
+
+      - name: Send Deployment Success Notification
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "🚀 NexusAI Deployment Successful - All Security Checks Passed"
+          body: |
+            ✅ NexusAI deployment completed successfully!
+            
+            🌐 Application URL: https://${{ secrets.ROUTE53_RECORD_NAME }}
+            
+            View SonarCloud Results: https://sonarcloud.io/project/overview?id=Aanidhay_Nexus-AI-Chatbot
+            View CloudWatch Dashboard: Check your AWS Console
+            
+            Commit: ${{ github.sha }} | Author: ${{ github.actor }}
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: NexusAI CI/CD Pipeline

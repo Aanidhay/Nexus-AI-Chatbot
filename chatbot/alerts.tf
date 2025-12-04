@@ -2,7 +2,7 @@
 #  DATA SO URCE: FIND THE EXISTING SNS TOPIC
 #  This looks up the SNS Topic you created manually.
 #################################################################
-data "aws_sns_topic" "nexusai_alerts_topic" {
+resource "aws_sns_topic" "nexusai_alerts_topic" {
   name = "NexusAI-High-CPU-Alerts"
 }
 

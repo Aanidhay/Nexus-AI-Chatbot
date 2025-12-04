@@ -12,7 +12,7 @@ resource "aws_cloudwatch_dashboard" "nexusai_dashboard" {
         properties = {
           metrics = [
             # Note: This now correctly references aws_instance.nexusai_server.id
-            ["CWAgent", "cpu_usage_idle", "InstanceId", aws_instance.nexusai_server.id, { "label" = "CPU Idle", "color" = "#2ca02c" }],
+            ["CWAgent", "cpu_usage_idle", "InstanceId", aws_instance.nexus_ai_server.id, { "label" = "CPU Idle", "color" = "#2ca02c" }],
             [".", "cpu_usage_user", ".", ".", { "label" = "CPU User", "color" = "#1f77b4" }],
             [".", "cpu_usage_system", ".", ".", { "label" = "CPU System", "color" = "#ff7f0e" }]
           ],
@@ -32,7 +32,7 @@ resource "aws_cloudwatch_dashboard" "nexusai_dashboard" {
         properties = {
           metrics = [
             # Note: This now correctly references aws_instance.nexusai_server.id
-            ["CWAgent", "mem_used_percent", "InstanceId", aws_instance.nexusai_server.id]
+            ["CWAgent", "mem_used_percent", "InstanceId", aws_instance.nexus_ai_server.id]
           ],
           period = 300,
           stat   = "Average",
@@ -49,7 +49,7 @@ resource "aws_cloudwatch_dashboard" "nexusai_dashboard" {
         properties = {
           metrics = [
             # Note: This now correctly references aws_instance.nexusai_server.id
-            ["CWAgent", "disk_used_percent", "path", "/", "InstanceId", aws_instance.nexusai_server.id]
+            ["CWAgent", "disk_used_percent", "path", "/", "InstanceId", aws_instance.nexus_ai_server.id]
           ],
           period = 300,
           stat   = "Average",

@@ -14,7 +14,7 @@ resource "aws_iam_policy" "route53_ddns_policy" {
         Resource = [
           # CRITICAL: Replace 'YOUR_HOSTED_ZONE_ID' with the actual ID (e.g., Z0123456ABCDEF)
           # This limits the update permission to ONLY this Hosted Zone.
-          "arn:aws:route53:::hostedzone/${secrets.ROUTE53_ZONE_ID}"
+          "arn:aws:route53:::hostedzone/${var.ROUTE53_ZONE_ID}"
         ]
       }
     ]

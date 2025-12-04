@@ -2,7 +2,7 @@
 #  DATA SO URCE: FIND THE EXISTING SNS TOPIC
 #  This looks up the SNS Topic you created manually.
 #################################################################
-data "aws_sns_topic" "nexusai_alerts_topic" {
+data "aws_sns_topic" "nexus_ai_alerts_topic" {
   name = "NexusAI-High-CPU-Alerts"
 }
 
@@ -11,7 +11,7 @@ data "aws_sns_topic" "nexusai_alerts_topic" {
 #  This sends alerts directly to your phone.
 #################################################################
 resource "aws_sns_topic_subscription" "sms_subscription" {
-  topic_arn = data.aws_sns_topic.nexusai_alerts_topic.arn
+  topic_arn = data.aws_sns_topic.nexus_ai_alerts_topic.arn
   protocol  = "sms"
   endpoint  = "+919416936987" 
 }
@@ -21,7 +21,7 @@ resource "aws_sns_topic_subscription" "sms_subscription" {
 #  SNS TOPIC POLICY
 #  This grants CloudWatch pe rmission to publish to the topic.
 #################################################################
-resource "aws_sns_topic_policy" "nexusai_alerts_policy" {
+resource "aws_sns_topic_policy" "nexus_ai_alerts_policy" {
   arn = data.aws_sns_topic.nexusai_alerts_topic.arn
   policy = jsonencode({
     Version   = "2012-10-17",

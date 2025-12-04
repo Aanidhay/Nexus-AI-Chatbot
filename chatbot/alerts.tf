@@ -11,7 +11,7 @@ resource "aws_sns_topic" "nexusai_alerts_topic" {
 #  This sends alerts directly to your phone.
 #################################################################
 resource "aws_sns_topic_subscription" "sms_subscription" {
-  topic_arn = data.aws_sns_topic.nexusai_alerts_topic.arn
+  topic_arn = aws_sns_topic.nexusai_alerts_topic.arn
   protocol  = "sms"
   endpoint  = "+919416936987" 
 }
@@ -22,7 +22,7 @@ resource "aws_sns_topic_subscription" "sms_subscription" {
 #  This grants CloudWatch pe rmission to publish to the topic.
 #################################################################
 resource "aws_sns_topic_policy" "nexus_ai_alerts_policy" {
-  arn = data.aws_sns_topic.nexusai_alerts_topic.arn
+  arn = aws_sns_topic.nexusai_alerts_topic.arn
   policy = jsonencode({
     Version   = "2012-10-17",
     Statement = [
@@ -32,7 +32,7 @@ resource "aws_sns_topic_policy" "nexus_ai_alerts_policy" {
           Service = "cloudwatch.amazonaws.com"
         },
         Action   = "SNS:Publish",
-        Resource = data.aws_sns_topic.nexusai_alerts_topic.arn
+        Resource = aws_sns_topic.nexusai_alerts_topic.arn
       }
     ]
   })
@@ -55,8 +55,8 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu_test_alarm" {
   }
   alarm_description = "TEST ALARM: CPU is 75% or higher for 1 minute."
   # This now refers to the topic found by the data source
-  alarm_actions     = [data.aws_sns_topic.nexusai_alerts_topic.arn]
-  ok_actions        = [data.aws_sns_topic.nexusai_alerts_topic.arn]
+  alarm_actions     = [aws_sns_topic.nexusai_alerts_topic.arn]
+  ok_actions        = [aws_sns_topic.nexusai_alerts_topic.arn]
 }
 
 #################################################################
@@ -76,8 +76,8 @@ resource "aws_cloudwatch_metric_alarm" "high_network_out_test_alarm" {
   }
   alarm_description = "TEST ALARM: Network Out is over 5MB in 1 minute."
   # This also refers to the topic found by the data source
-  alarm_actions     = [data.aws_sns_topic.nexusai_alerts_topic.arn]
-  ok_actions        = [data.aws_sns_topic.nexusai_alerts_topic.arn]
+  alarm_actions     = [aws_sns_topic.nexusai_alerts_topic.arn]
+  ok_actions        = [aws_sns_topic.nexusai_alerts_topic.arn]
 }
 
 

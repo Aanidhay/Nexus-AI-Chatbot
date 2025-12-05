@@ -19,16 +19,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-# FORCE DEFAULT WHITE THEME
-st.markdown("""
-<style>
-    body, .stApp, .block-container, .stSidebar {
-        background-color: white !important;
-        color: black !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 
 # Initialize session state
 if 'uploaded_files' not in st.session_state:

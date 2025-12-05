@@ -217,7 +217,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
+        # with:
           # Ensure Dockerfile and app files are present for build context
           # path: ./chatbot 
 

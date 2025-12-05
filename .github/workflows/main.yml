@@ -320,11 +320,10 @@ jobs:
               --network nexusai_network \
               --name nexusai-caddy \
               --restart always \
+              --user=root \
               caddy \
-              # Ensure the Caddy arguments are passed correctly after the image name
-              caddy reverse-proxy \
-                --from ${{ secrets.ROUTE53_RECORD_NAME }},$INSTANCE_PUBLIC_DNS \
-                --to nexusai-app:80
+              # Pass the Caddy command arguments as one line
+              caddy reverse-proxy --from ${{ secrets.ROUTE53_RECORD_NAME }},$INSTANCE_PUBLIC_DNS --to nexusai-app:80
             
             echo "Deployment completed successfully! Access via https://${{ secrets.ROUTE53_RECORD_NAME }}"
 

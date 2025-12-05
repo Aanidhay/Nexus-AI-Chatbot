@@ -321,7 +321,7 @@ jobs:
               --name nexusai-caddy \
               --restart always \
               caddy \
-              # Pass a single command string to the container's entrypoint
+              # Ensure the Caddy arguments are passed correctly after the image name
               caddy reverse-proxy \
                 --from ${{ secrets.ROUTE53_RECORD_NAME }},$INSTANCE_PUBLIC_DNS \
                 --to nexusai-app:80

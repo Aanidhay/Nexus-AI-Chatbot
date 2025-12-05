@@ -81,8 +81,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [ -f chatbot/requirements.txt ]; then
-            pip install -r chatbot/requirements.txt
+          if [ -f ./chatbot/requirements.txt ]; then
+            pip install -r ./chatbot/requirements.txt
           fi
 
       - name: SonarCloud Scan
@@ -99,7 +99,7 @@ jobs:
         run: |
           echo "Waiting for Quality Gate result..."
           sleep 30
-          # ProjectKey from chatbot/sonar-project.properties
+          # ProjectKey from ./chatbot/sonar-project.properties
           QUALITY_GATE_STATUS=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "https://sonarcloud.io/api/qualitygates/project_status?projectKey=Aanidhay_Nexus-AI-Chatbot" | jq -r '.projectStatus.status')
           echo "Quality Gate Status: $QUALITY_GATE_STATUS"
           if [ "$QUALITY_GATE_STATUS" = "OK" ]; then
@@ -144,9 +144,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [ -f chatbot/requirements.txt ]; then
+          if [ -f ./chatbot/requirements.txt ]; then
             sudo apt-get install -y jq 
-            pip install -r chatbot/requirements.txt
+            pip install -r ./chatbot/requirements.txt
           fi
 
       - name: Run OWASP Dependency Check
@@ -154,7 +154,7 @@ jobs:
         uses: dependency-check/Dependency-Check_Action@main
         with:
           project: 'NexusAI-Dependencies'
-          path: 'chatbot' 
+          path: './chatbot' 
           format: 'ALL'
           args: >
             --enableRetired

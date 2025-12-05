@@ -230,8 +230,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./chatbot
-          file: ./Dockerfile 
+          context: chatbot
+          file: Dockerfile 
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
 

@@ -315,13 +315,12 @@ jobs:
             # Caddy command uses the Route 53 record name for auto-SSL
             docker run -d \
               -p 80:80 \
-              -p 443:443 \
-              -p 443:443/udp \
               --network nexusai_network \
               --name nexusai-caddy \
               --restart always \
               caddy \
-              caddy reverse-proxy --from ${{ secrets.ROUTE53_RECORD_NAME }} --to nexusai-app:80 
+              # Serve traffic from the Public IP on port 80, proxied to the app
+              caddy reverse-proxy --from $INSTANCE_PUBLIC_IP --to nexusai-app:80
             
             echo "Deployment completed successfully!"
 

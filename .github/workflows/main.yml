@@ -327,12 +327,10 @@ jobs:
               --network nexusai_network \
               --name nexusai-caddy \
               --restart always \
-              --user=root \
+              --user=root \  # <--- ADD THIS LINE
               caddy \
-              # Pass the command arguments as a single string to Caddy
-              caddy reverse-proxy \
-                --from ${{ secrets.ROUTE53_RECORD_NAME }},$INSTANCE_PUBLIC_DNS \
-                --to nexusai-app:80
+              # Pass the Caddy command arguments as one line
+              caddy reverse-proxy --from ${{ secrets.ROUTE53_RECORD_NAME }},$INSTANCE_PUBLIC_DNS --to nexusai-app:80
             
             echo "Deployment completed successfully! Access via https://${{ secrets.ROUTE53_RECORD_NAME }}"
 
@@ -385,7 +383,7 @@ jobs:
                   }
                 },
                 "append_dimensions": {
-                  "InstanceId": "${aws:InstanceId}"
+                
                 }
               },
               "logs": {

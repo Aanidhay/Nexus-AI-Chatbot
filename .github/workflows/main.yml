@@ -254,10 +254,7 @@ jobs:
             sudo chmod 666 /var/run/docker.sock
             
             # --- DUCKDNS UPDATE LOGIC (Replaced Route 53) ---
-            
-            # 2. Execute DuckDNS Update via CURL
             echo "Attempting to update DuckDNS for domain: ${{ secrets.DUCKDNS_DOMAIN }}"
-            # This CURL command sends the host IP automatically as 'ip=' is omitted
             DUCKDNS_RESPONSE=$(curl "https://www.duckdns.org/update?domains=${{ secrets.DUCKDNS_DOMAIN }}&token=${{ secrets.DUCKDNS_TOKEN }}&ip=")
             
             if [ "$DUCKDNS_RESPONSE" = "OK" ]; then
@@ -268,7 +265,7 @@ jobs:
             fi
             sleep 30
             
-            # --- APPLICATION DEPLOYMENT ---
+            # --- APPLICATION DEPLOYMENT & CADDYFILE CREATION ---
             docker network create nexusai_network 2>/dev/null || echo "Network nexusai_network already exists"
 
             docker stop nexusai-app 2>/dev/null || echo "Container nexusai-app was not running"
@@ -288,7 +285,15 @@ jobs:
               --restart always \
               ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
             
-            # Caddy command uses the DuckDNS FQDN and runs as root to bind ports 80/443
+            # 1. Create the Caddyfile on the EC2 host's home directory
+            # This uses the correct FQDN from secrets and points it to the internal network service name.
+            sudo bash -c 'cat > /home/ubuntu/Caddyfile <<EOF
+            ${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org {
+                reverse_proxy nexusai-app:80
+            }
+            EOF'
+
+            # 2. Run Caddy, MOUNTING the Caddyfile and using the standard 'caddy run' command
             docker run -d \
               -p 80:80 \
               -p 443:443 \
@@ -297,9 +302,8 @@ jobs:
               --name nexusai-caddy \
               --restart always \
               --user=root \
-              caddy \
-              # CRITICAL FIX: Wrap the entire Caddy command in quotation marks
-              "caddy reverse-proxy --from ${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org --to nexusai-app:80"
+              -v /home/ubuntu/Caddyfile:/etc/caddy/Caddyfile \
+              caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
             
             echo "Deployment completed successfully! Access via https://${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org"
 

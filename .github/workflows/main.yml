@@ -31,8 +31,8 @@ jobs:
         working-directory: ./chatbot
 
       - name: Terraform Apply
-        # Pass the Route 53 Hosted Zone ID as a variable for the IAM Policy (route53.tf)
-        run: terraform apply -auto-approve -var "ROUTE53_ZONE_ID=${{ secrets.ROUTE53_ZONE_ID }}"
+        # ROUTE53 variable is removed, applying without extra arguments
+        run: terraform apply -auto-approve
         working-directory: ./chatbot
 
       - name: Ensure Instance is Running and Get IP
@@ -217,9 +217,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        # with:
-          # Ensure Dockerfile and app files are present for build context
-          # path: ./chatbot 
 
       - name: Login to DockerHub
         uses: docker/login-action@v3
@@ -254,45 +251,19 @@ jobs:
             done
             sudo chmod 666 /var/run/docker.sock
             
-            # --- ROUTE 53 UPDATE LOGIC ---
+            # --- DUCKDNS UPDATE LOGIC (Replaced Route 53) ---
             
-            # 2. Get Current Public IP from EC2 Metadata
-            INSTANCE_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-            if [ -z "$INSTANCE_IP" ]; then
-              echo "FATAL: Could not retrieve instance IP from metadata."
+            # 2. Execute DuckDNS Update via CURL
+            echo "Attempting to update DuckDNS for domain: ${{ secrets.DUCKDNS_DOMAIN }}"
+            # This CURL command sends the host IP automatically as 'ip=' is omitted
+            DUCKDNS_RESPONSE=$(curl "https://www.duckdns.org/update?domains=${{ secrets.DUCKDNS_DOMAIN }}&token=${{ secrets.DUCKDNS_TOKEN }}&ip=")
+            
+            if [ "$DUCKDNS_RESPONSE" = "OK" ]; then
+              echo "✅ DuckDNS update successful! Waiting 30 seconds for propagation..."
+            else
+              echo "❌ ERROR: DuckDNS update failed. Response was: $DUCKDNS_RESPONSE"
               exit 1
             fi
-            echo "Current Public IP is: $INSTANCE_IP"
-            
-            # 3. Create Route 53 Change Batch JSON on EC2 server
-            sudo bash -c 'cat > /tmp/route53-update.json <<EOF
-            {
-              "Comment": "Update A record for NexusAI deployment.",
-              "Changes": [
-                {
-                  "Action": "UPSERT",
-                  "ResourceRecordSet": {
-                    "Name": "${{ secrets.ROUTE53_RECORD_NAME }}",
-                    "Type": "A",
-                    "TTL": 60,
-                    "ResourceRecords": [
-                      {
-                        "Value": "'"$INSTANCE_IP"'"
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
-            EOF'
-            
-            # 4. Execute DNS Update using AWS CLI
-            # Zone ID is Z03334572GHUWIWV6BCXZ (provided by user) and passed via Secret
-            aws route53 change-resource-record-sets \
-              --hosted-zone-id ${{ secrets.ROUTE53_ZONE_ID }} \
-              --change-batch file:///tmp/route53-update.json
-              
-            echo "✅ Route 53 DNS update successful! Waiting 30 seconds for propagation..."
             sleep 30
             
             # --- APPLICATION DEPLOYMENT ---
@@ -312,14 +283,7 @@ jobs:
               --restart always \
               ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
             
-            # 1. Get the Public DNS name for Caddy's primary listener
-            INSTANCE_PUBLIC_DNS=$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)
-            
-            # Remove and stop old caddy container (this must be done before the run)
-            docker stop nexusai-caddy 2>/dev/null || true
-            docker rm nexusai-caddy 2>/dev/null || true
-
-            # 2. Run Caddy using an explicit single command that includes both hostnames
+            # Caddy command uses the DuckDNS FQDN and runs as root to bind ports 80/443
             docker run -d \
               -p 80:80 \
               -p 443:443 \
@@ -327,12 +291,11 @@ jobs:
               --network nexusai_network \
               --name nexusai-caddy \
               --restart always \
-              --user=root \  # <--- ADD THIS LINE
+              --user=root \
               caddy \
-              # Pass the Caddy command arguments as one line
-              caddy reverse-proxy --from ${{ secrets.ROUTE53_RECORD_NAME }},$INSTANCE_PUBLIC_DNS --to nexusai-app:80
+              caddy reverse-proxy --from ${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org --to nexusai-app:80
             
-            echo "Deployment completed successfully! Access via https://${{ secrets.ROUTE53_RECORD_NAME }}"
+            echo "Deployment completed successfully! Access via https://${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org"
 
   
       # 3.B. Monitoring Setup (CloudWatch)
@@ -348,6 +311,7 @@ jobs:
             sudo dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
             
             # Create CloudWatch Agent config file (config.json)
+            # Removed dynamic InstanceId variable as recommended for safer JSON validation
             sudo bash -c 'cat > /opt/aws/amazon-cloudwatch-agent/bin/config.json <<EOF
             {
               "agent": {
@@ -428,7 +392,7 @@ jobs:
           body: |
             ✅ NexusAI deployment completed successfully!
             
-            🌐 Application URL: https://${{ secrets.ROUTE53_RECORD_NAME }}
+            🌐 Application URL: https://${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org
             
             View SonarCloud Results: https://sonarcloud.io/project/overview?id=Aanidhay_Nexus-AI-Chatbot
             View CloudWatch Dashboard: Check your AWS Console

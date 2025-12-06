@@ -231,6 +231,8 @@ jobs:
           file: ./chatbot/Dockerfile 
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
+          build-args: |
+            --no-cache
 
       - name: Deploy to EC2 and Update DNS
         uses: appleboy/ssh-action@master

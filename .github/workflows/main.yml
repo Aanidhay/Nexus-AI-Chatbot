@@ -224,6 +224,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Create Streamlit Secrets File
+          # This step runs on the server/runner just before deployment
+        run: |
+          mkdir -p .streamlit
+          echo "GEMINI_API_KEY = \"${{ secrets.GEMINI_API_KEY }}\"" > .streamlit/secrets.toml
+          # Check if the file was created (optional)
+          cat .streamlit/secrets.toml
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:

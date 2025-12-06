@@ -245,6 +245,14 @@ st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('<div class="input-area">', unsafe_allow_html=True)
 cols = st.columns([6, 1])
 
+# --- Retrieve API Key Once ---
+try:
+    # Access the environment variable injected by Docker, which Streamlit maps to st.secrets
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+except KeyError:
+    st.error("Configuration Error: GEMINI_API_KEY not found in environment secrets.")
+    GEMINI_API_KEY = None
+    
 def detect_language(text):
     """Detect the language of the input text"""
     # Simple detection for common languages
@@ -258,7 +266,7 @@ def translate_to_english(text, source_lang):
         # For simplicity, we'll use the Gemini API to translate
         try:
             response = requests.post(
-                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='{{secrets.GEMINI_API_KEY}},
+                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
                 headers={'Content-Type': 'application/json'},
                 json={
                     'contents': [{
@@ -280,7 +288,7 @@ def translate_response(text, target_lang):
     if target_lang != 'english':
         try:
             response = requests.post(
-                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='{{secrets.GEMINI_API_KEY}},
+                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
                 headers={'Content-Type': 'application/json'},
                 json={
                     'contents': [{
@@ -298,6 +306,10 @@ def translate_response(text, target_lang):
     return text
 
 def process_input():
+    if not GEMINI_API_KEY:
+        st.error("API key is missing. Please check your deployment secrets.")
+        return
+        
     if st.session_state.get(st.session_state.user_input_key, '').strip():
         user_input = st.session_state[st.session_state.user_input_key].strip()
         
@@ -336,7 +348,7 @@ def process_input():
                                 pass
                         
                         response = requests.post(
-                            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='{{secrets.GEMINI_API_KEY}},
+                            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
                             headers={'Content-Type': 'application/json'},
                             json={
                                 'contents': [{
@@ -360,7 +372,7 @@ def process_input():
                 else:
                     with st.spinner("TheScytheNexus AI IS THINKING"):
                         response = requests.post(
-                            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='{{secrets.GEMINI_API_KEY}},
+                            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
                             headers={
                                 'Content-Type': 'application/json'
                             },

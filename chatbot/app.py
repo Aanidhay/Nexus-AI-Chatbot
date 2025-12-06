@@ -248,11 +248,12 @@ cols = st.columns([6, 1])
 # --- Retrieve API Key Once ---
 try:
     # Access the environment variable injected by Docker, which Streamlit maps to st.secrets
+    # Use the key as defined in the pipeline's docker run command
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 except KeyError:
     st.error("Configuration Error: GEMINI_API_KEY not found in environment secrets.")
     GEMINI_API_KEY = None
-    
+
 def detect_language(text):
     """Detect the language of the input text"""
     # Simple detection for common languages
@@ -262,10 +263,11 @@ def detect_language(text):
 
 def translate_to_english(text, source_lang):
     """Translate text to English if it's not already in English"""
-    if source_lang == 'hindi':
+    if source_lang == 'hindi' and GEMINI_API_KEY:
         # For simplicity, we'll use the Gemini API to translate
         try:
             response = requests.post(
+                # CORRECTED SYNTAX: Using the Python variable directly in the f-string
                 f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
                 headers={'Content-Type': 'application/json'},
                 json={
@@ -285,9 +287,10 @@ def translate_to_english(text, source_lang):
 
 def translate_response(text, target_lang):
     """Translate text to the target language if not English"""
-    if target_lang != 'english':
+    if target_lang != 'english' and GEMINI_API_KEY:
         try:
             response = requests.post(
+                # CORRECTED SYNTAX: Using the Python variable directly in the f-string
                 f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}',
                 headers={'Content-Type': 'application/json'},
                 json={

@@ -285,15 +285,14 @@ jobs:
               --restart always \
               ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
             
-            # 1. Create the Caddyfile on the EC2 host's home directory
-            # This uses the correct FQDN from secrets and points it to the internal network service name.
+            # 1. Create the Caddyfile on the EC2 host's home directory (This part is correct and must be kept)
             sudo bash -c 'cat > /home/ubuntu/Caddyfile <<EOF
             ${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org {
                 reverse_proxy nexusai-app:80
             }
             EOF'
 
-            # 2. Run Caddy, MOUNTING the Caddyfile and using the standard 'caddy run' command
+            # 2. Run Caddy, mounting the Caddyfile and using the simplest command.
             docker run -d \
               -p 80:80 \
               -p 443:443 \
@@ -303,7 +302,9 @@ jobs:
               --restart always \
               --user=root \
               -v /home/ubuntu/Caddyfile:/etc/caddy/Caddyfile \
-              caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+              caddy 
+              # NOTE: Omitting the CMD forces the container to use its default command: 
+              # caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
             
             echo "Deployment completed successfully! Access via https://${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org"
 

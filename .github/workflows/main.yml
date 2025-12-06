@@ -278,7 +278,7 @@ jobs:
 
             echo "Waiting 5 seconds for Docker cleanup..."
             sleep 5
-            
+
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
             
             docker run -d \
@@ -298,7 +298,8 @@ jobs:
               --restart always \
               --user=root \
               caddy \
-              caddy reverse-proxy --from ${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org --to nexusai-app:80
+              # CRITICAL FIX: Wrap the entire Caddy command in quotation marks
+              "caddy reverse-proxy --from ${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org --to nexusai-app:80"
             
             echo "Deployment completed successfully! Access via https://${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org"
 

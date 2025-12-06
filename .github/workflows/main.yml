@@ -224,14 +224,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Create secrets.toml on Runner
-        run: |
-          # This creates the file in the current working directory of the runner.
-          # Ensure this file is included in your deployment artifact (e.g., Docker image or SCP transfer)
-          mkdir -p .streamlit 
-          echo "GEMINI_API_KEY = \"${{ secrets.GEMINI_API_KEY }}\"" > .streamlit/secrets.toml
-          echo "Secrets file created."
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
@@ -289,7 +281,7 @@ jobs:
             docker run -d \
               --network nexusai_network \
               --name nexusai-app \
-              -e GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
+              -e STREAMLIT_SECRET_GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
               --restart always \
               ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
             

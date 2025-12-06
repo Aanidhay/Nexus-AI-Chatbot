@@ -258,7 +258,7 @@ def translate_to_english(text, source_lang):
         # For simplicity, we'll use the Gemini API to translate
         try:
             response = requests.post(
-                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={st.secrets["gemini"]["api_key"]}',
+                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{secrets.GEMINI_API_KEY}}',
                 headers={'Content-Type': 'application/json'},
                 json={
                     'contents': [{
@@ -280,7 +280,7 @@ def translate_response(text, target_lang):
     if target_lang != 'english':
         try:
             response = requests.post(
-                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={st.secrets["gemini"]["api_key"]}',
+                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{secrets.GEMINI_API_KEY}}',
                 headers={'Content-Type': 'application/json'},
                 json={
                     'contents': [{
@@ -336,7 +336,7 @@ def process_input():
                                 pass
                         
                         response = requests.post(
-                            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={st.secrets["gemini"]["api_key"]}',
+                            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{secrets.GEMINI_API_KEY}}',
                             headers={'Content-Type': 'application/json'},
                             json={
                                 'contents': [{
@@ -360,7 +360,7 @@ def process_input():
                 else:
                     with st.spinner("TheScytheNexus AI IS THINKING"):
                         response = requests.post(
-                            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={st.secrets["gemini"]["api_key"]}',
+                            f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{secrets.GEMINI_API_KEY}}',
                             headers={
                                 'Content-Type': 'application/json'
                             },

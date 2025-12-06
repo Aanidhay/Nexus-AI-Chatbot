@@ -276,6 +276,9 @@ jobs:
             docker stop nexusai-caddy 2>/dev/null || echo "Container nexusai-caddy was not running"
             docker rm nexusai-caddy 2>/dev/null || echo "Container nexusai-caddy did not exist"
 
+            echo "Waiting 5 seconds for Docker cleanup..."
+            sleep 5
+            
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nexusai-app:latest
             
             docker run -d \

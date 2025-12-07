@@ -343,7 +343,7 @@ def translate_to_english(text, source_lang):
         try:
             prompt = f"Translate the following Hindi text to English. Respond with ONLY the English translation and no other text: {text}"
             response = requests.post(
-                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={GEMINI_API_KEY}',
+                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
                 headers={'Content-Type': 'application/json'},
                 json={'contents': [{'parts': [{'text': prompt}]}]},
                 timeout=30
@@ -361,7 +361,7 @@ def translate_response(text, target_lang):
         try:
             prompt = f"Translate the following English response to {target_lang} (keep it natural and conversational). Respond with ONLY the translated text and no other text: {text}"
             response = requests.post(
-                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={GEMINI_API_KEY}',
+                f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
                 headers={'Content-Type': 'application/json'},
                 json={'contents': [{'parts': [{'text': prompt}]}]},
                 timeout=30
@@ -436,7 +436,7 @@ def process_input():
                 
                 # --- API Call ---
                 response = requests.post(
-                    f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={GEMINI_API_KEY}',
+                    f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
                     headers={'Content-Type': 'application/json'},
                     json={'contents': [{'parts': [{'text': prompt_for_model}]}]},
                     timeout=30

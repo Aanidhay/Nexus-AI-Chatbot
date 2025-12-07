@@ -306,7 +306,7 @@ jobs:
               # NOTE: Omitting the CMD forces the container to use its default command: 
               # caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
             
-            echo "Deployment completed successfully! Access via https://${{ secrets.DUCKDNS_DOMAIN }}.duckdns.org"
+            echo "Deployment completed successfully! Access via https://${{ secrets.DUCKDNS_DOMAIN }}.streamlit.app"
 
   
       # 3.B. Monitoring Setup (CloudWatch)
